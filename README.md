@@ -21,6 +21,18 @@ mkdir -p ~/.hermes/skills
 cp -r lightning-manager ~/.hermes/skills/
 ```
 
+<details>
+<summary>No Git? Download the zip instead.</summary>
+
+Grab `lightning-manager.zip` from the repo page, unzip it, then:
+
+```bash
+mkdir -p ~/.hermes/skills
+cp -r lightning-manager ~/.hermes/skills/
+```
+
+</details>
+
 Hermes discovers skills automatically from `~/.hermes/skills/` — no config to
 edit, no restart needed.
 

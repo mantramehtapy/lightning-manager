@@ -36,9 +36,13 @@ Check off each of these before you start.
 The skill is a folder. Copy it into your Hermes skills directory.
 
 ```bash
+git clone https://github.com/mantramehtapy/lightning-manager.git
 mkdir -p ~/.hermes/skills
 cp -r lightning-manager ~/.hermes/skills/
 ```
+
+No Git? Download `lightning-manager.zip` from the repo page, unzip it, and run
+the last two lines instead.
 
 Verify it landed. You should see four files:
 
