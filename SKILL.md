@@ -6,8 +6,6 @@ author: Mantra Mehta
 license: MIT
 compatibility: Requires the lightning CLI (pip install lightning-sdk), network access, and a completed `lightning login`. POSIX-style shell recommended.
 metadata:
-  author: Mantra Mehta, Hermes Agent
-  version: "1.0"
   spec: https://agentskills.io/specification
   cli-source: https://lightning.ai/docs
 ---
