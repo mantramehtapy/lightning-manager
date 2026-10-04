@@ -14,12 +14,14 @@ installs `lightning-sdk` if it is missing, and runs `lightning login`.
 from __future__ import annotations
 
 import argparse
+import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 # ---------------------------------------------------------------------------
 # Structured result object
@@ -69,6 +71,76 @@ def _interactive(
         prompt=prompt,
         error=f"Missing required parameter(s): {', '.join(missing)}",
     )
+
+
+def _clean_teamspace(value: str) -> str:
+    """Normalize a teamspace for stable comparison without changing display text."""
+    return re.sub(r"\s+", " ", value.strip().strip("/\\")).casefold()
+
+
+def _json_records(value: Any) -> Iterable[Dict[str, Any]]:
+    """Yield nested JSON mappings that may represent studio records."""
+    if isinstance(value, dict):
+        yield value
+        for child in value.values():
+            yield from _json_records(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from _json_records(child)
+
+
+def _canonical_teamspace(text: str, requested: str) -> str:
+    """Prefer the teamspace returned by the CLI over the requested alias."""
+    try:
+        payload = json.loads(text)
+    except (TypeError, json.JSONDecodeError):
+        payload = None
+    if payload is not None:
+        for record in _json_records(payload):
+            for key in ("canonical_teamspace", "teamspace", "team_space", "teamspace_name"):
+                value = record.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
+
+    match = re.search(
+        r"(?im)^\s*(?:canonical\s+)?team\s*space\s*[:|]\s*([^|\n]+?)\s*$",
+        text,
+    )
+    return match.group(1).strip() if match else requested
+
+
+def _studio_key(line: str, canonical_teamspace: str) -> Tuple[str, ...]:
+    """Build a dedupe key: studio ID first, then teamspace/name, then row."""
+    id_match = re.search(
+        r"(?i)\b(?:studio[_ -]?id|studio[- ]?id|id)\s*[:=]\s*[\"']?([A-Za-z0-9._:-]+)",
+        line,
+    )
+    if id_match:
+        return ("id", id_match.group(1).casefold())
+
+    name_match = re.search(
+        r"(?i)\b(?:studio[_ -]?name|studio|name)\s*[:=]\s*[\"']?([^,|]+?)['\"]?\s*(?:,|\||$)",
+        line,
+    )
+    if name_match:
+        return ("name", _clean_teamspace(canonical_teamspace), name_match.group(1).strip().casefold())
+    return ("row", _clean_teamspace(canonical_teamspace), re.sub(r"\s+", " ", line.strip()).casefold())
+
+
+def _dedupe_listing(outputs: Sequence[Tuple[str, str]]) -> str:
+    """Merge teamspace listings while preserving first-seen rows."""
+    seen: set[Tuple[str, ...]] = set()
+    merged: List[str] = []
+    for requested, output in outputs:
+        canonical = _canonical_teamspace(output, requested)
+        for line in output.splitlines():
+            if not line.strip():
+                continue
+            key = _studio_key(line, canonical)
+            if key not in seen:
+                seen.add(key)
+                merged.append(line)
+    return "\n".join(merged)
 
 
 class LightningManagerSkill:
@@ -180,13 +252,65 @@ class LightningManagerSkill:
 
     # -- studios -----------------------------------------------------------
 
-    def list_studios(self, teamspace: Optional[str] = None) -> LightningResult:
-        """`lightning studio list [--teamspace "owner/teamspace-name"]`"""
+    def list_studios(
+        self,
+        teamspace: Optional[Union[str, Sequence[str]]] = None,
+    ) -> LightningResult:
+        """List studios, optionally across multiple teamspace aliases.
+
+        For broad discovery, pass a sequence of accessible teamspaces. Each
+        alias is queried separately; the CLI's returned teamspace is treated
+        as canonical and duplicate studios are removed from the merged output.
+        """
+        if isinstance(teamspace, (list, tuple, set)):
+            return self.list_studios_across_teamspaces(teamspace)
         cmd = [self.binary, "studio", "list"]
         tspace = teamspace or self.default_teamspace
         if self._require(tspace, "teamspace"):
             cmd += ["--teamspace", str(tspace)]
         return self._run(cmd)
+
+    def list_studios_across_teamspaces(
+        self, teamspaces: Optional[Iterable[str]] = None
+    ) -> LightningResult:
+        """Query each accessible teamspace and return a deduplicated listing."""
+        requested = []
+        for value in teamspaces or []:
+            if self._require(value, "teamspace") and value not in requested:
+                requested.append(str(value))
+        if not requested:
+            return _interactive(
+                [self.binary, "studio", "list"],
+                ["teamspaces"],
+                "Which accessible teamspaces should I query for a broad studio listing?",
+            )
+
+        results: List[Tuple[str, str]] = []
+        failures: List[str] = []
+        for value in requested:
+            result = self._run([self.binary, "studio", "list", "--teamspace", value])
+            if result.success:
+                results.append((value, result.stdout))
+            else:
+                failures.append(f"{value}: {result.error or result.stderr or 'list failed'}")
+
+        if not results:
+            return LightningResult(
+                success=False,
+                command=[self.binary, "studio", "list"],
+                stderr="\n".join(failures),
+                returncode=1,
+                error="Every teamspace listing failed.",
+            )
+        merged = _dedupe_listing(results)
+        warning = "\n".join(failures)
+        return LightningResult(
+            success=True,
+            command=[self.binary, "studio", "list", "--teamspace", "<each accessible teamspace>"],
+            stdout=merged,
+            stderr=warning,
+            returncode=0,
+        )
 
     def start_studio(
         self, studio_name: Optional[str] = None, machine_type: Optional[str] = None
@@ -343,7 +467,11 @@ def _build_parser() -> "argparse.ArgumentParser":
     sub = ap.add_subparsers(dest="op", metavar="OPERATION")
 
     p = sub.add_parser("list-studios", help="lightning studio list")
-    p.add_argument("--teamspace")
+    p.add_argument(
+        "--teamspace",
+        action="append",
+        help="teamspace to query; repeat for broad listing across aliases",
+    )
 
     p = sub.add_parser("start-studio", help="lightning studio start")
     p.add_argument("--studio-name")

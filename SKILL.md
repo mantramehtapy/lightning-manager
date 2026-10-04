@@ -1,7 +1,7 @@
 ---
 name: lightning-manager
 description: Lightning Studio, job, and lit:// file management via CLI.
-version: 1.0.0
+version: 1.1.0
 author: Mantra Mehta
 license: MIT
 compatibility: Requires the lightning CLI (pip install lightning-sdk), network access, and a completed `lightning login`. POSIX-style shell recommended.
@@ -70,6 +70,8 @@ success — check `.success` before reporting to the user.**
 
 ## Quick Reference
 
+For broad listings, call `list_studios_across_teamspaces(...)`: query each accessible teamspace alias, use the teamspace returned by the CLI as canonical, and deduplicate by studio ID or canonical teamspace plus studio name.
+
 | Intent | Command |
 |---|---|
 | List studios | `lightning studio list [--teamspace "owner/teamspace"]` |
@@ -96,6 +98,11 @@ success — check `.success` before reporting to the user.**
    `lightning config show`. *Completion: config prints without an auth error.*
 4. **Identify the target.** If the studio name or machine type was not given,
    ask the user rather than guessing — a wrong machine type burns budget.
+   For a broad listing, query every accessible teamspace alias with
+   `list_studios_across_teamspaces(...)`; use the teamspace returned by the CLI
+   as canonical. Deduplicate by studio ID when available, otherwise by
+   canonical teamspace plus studio name. *Completion: each studio appears once
+   in the merged result.*
    *Completion: both `--name` and any `--machine` value are explicit.*
 5. **Execute.** Call the matching method. *Completion: `.success` is `True` and
    `stdout` is non-empty.*

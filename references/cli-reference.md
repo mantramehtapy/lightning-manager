@@ -8,7 +8,7 @@ lifecycle semantics below come from that article.
 
 | Command | Notes |
 |---|---|
-| `lightning studio list` | Add `--teamspace "owner/teamspace-name"` to scope |
+| `lightning studio list` | Add `--teamspace "owner/teamspace-name"` to scope; repeat it for broad listings and deduplicate by the CLI canonical teamspace plus studio identity |
 | `lightning studio start --name "my-studio"` | `--machine H100` optional; CPU if omitted |
 | `lightning studio stop --name "my-studio"` | Files persist — stopping is not deleting |
 | `lightning studio switch --name "my-studio" --machine H100` | Change compute on a running studio |

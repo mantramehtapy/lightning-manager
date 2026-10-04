@@ -29,6 +29,11 @@ Check off each of these before you start.
 - [ ] **A Lightning AI account.** You need one to create studios. Free tiers
       exist; you can sign up at https://lightning.ai.
 
+If you install this skill with `npx skills`, use Node.js 20.12+ or Node.js 22+
+(and the matching npm/npx). Node 18.19 can fail before the skills CLI starts
+with `node:util` / `styleText` errors. Check with `node --version` and
+`npx --version` before running the install command.
+
 ---
 
 ## 2. Installation
@@ -199,6 +204,7 @@ python3 scripts/lightning_manager.py run-job --job-name run1 \
 | What you want | Python method | Direct CLI command |
 |---|---|---|
 | List studios | `list_studios(teamspace=None)` | `lightning studio list [--teamspace "owner/teamspace"]` |
+| Broad studio listing | `list_studios_across_teamspaces([...])` | Repeats `--teamspace`, uses CLI canonical teamspace, deduplicates by studio ID or canonical teamspace + name |
 | Start a studio | `start_studio(studio_name, machine_type)` | `lightning studio start --name "NAME" [--machine H100]` |
 | Stop a studio | `stop_studio(studio_name)` | `lightning studio stop --name "NAME"` |
 | Switch CPU ↔ GPU | `switch_studio(studio_name, machine_type)` | `lightning studio switch --name "NAME" --machine H100` |
